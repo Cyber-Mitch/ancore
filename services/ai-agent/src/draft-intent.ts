@@ -7,6 +7,9 @@ import type {
   ProviderDraftResult,
 } from './providers/types';
 import { log } from './logging/logger';
+import { resolveIntentRecipient } from './recipients';
+import { defaultHandleResolver } from './handle-resolver';
+import type { HandleResolver } from '@ancore/types';
 
 export interface DraftIntentResult extends ProviderDraftResult {
   source: DraftSource;
@@ -25,10 +28,28 @@ const defaultProvider: LlmProvider = new AnthropicProvider();
  * schema validation — falls back to the deterministic parser so the endpoint
  * always succeeds, per issue #1005 item 3. The returned `source` field lets
  * callers and audit logs distinguish which path produced the draft.
+ *
+ * Both provider paths converge here, which makes this the one place recipient
+ * resolution can run for either of them (issue #1210). It happens before the
+ * draft is returned, so a handle that resolves to nothing never reaches
+ * scoreRisk() or the user — and a returned draft's recipient is always a
+ * checksum-valid address, never an unresolved handle.
  */
 export async function generateDraftIntent(
   input: DraftIntentInput,
-  provider: LlmProvider = defaultProvider
+  provider: LlmProvider = defaultProvider,
+  resolver: HandleResolver | null = defaultHandleResolver
+): Promise<DraftIntentResult> {
+  const draft = await produceDraft(input, provider);
+  const intent = await resolveIntentRecipient(draft.intent, resolver);
+
+  return { ...draft, intent };
+}
+
+/** LLM-first draft production with the deterministic fallback. */
+async function produceDraft(
+  input: DraftIntentInput,
+  provider: LlmProvider
 ): Promise<DraftIntentResult> {
   if (provider.isAvailable()) {
     try {

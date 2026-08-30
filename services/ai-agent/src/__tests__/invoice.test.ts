@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { createApp } from '../server';
 import { parseInvoiceIntent, InvoiceIntentSchema } from '../intents/invoice';
+import { VALID_ADDRESS, VALID_HANDLE } from './fixtures/addresses';
 
 describe('Invoice Intent Schema and Validation', () => {
   describe('Schema Validation', () => {
@@ -9,7 +10,7 @@ describe('Invoice Intent Schema and Validation', () => {
         type: 'invoice',
         amount: '150.00',
         asset: 'USDC',
-        recipient: 'Alice',
+        recipient: VALID_ADDRESS,
         dueDate: '2026-12-31T23:59:59Z',
       };
       const result = parseInvoiceIntent(fixture);
@@ -21,7 +22,7 @@ describe('Invoice Intent Schema and Validation', () => {
         type: 'invoice',
         amount: '150,00', // comma instead of dot
         asset: 'USDC',
-        recipient: 'Alice',
+        recipient: VALID_ADDRESS,
         dueDate: '2026-12-31T23:59:59Z',
       };
       const result = InvoiceIntentSchema.safeParse(fixture);
@@ -36,7 +37,7 @@ describe('Invoice Intent Schema and Validation', () => {
         type: 'invoice',
         amount: '150.00',
         asset: 'BTC', // not XLM or USDC
-        recipient: 'Alice',
+        recipient: VALID_ADDRESS,
         dueDate: '2026-12-31T23:59:59Z',
       };
       const result = InvoiceIntentSchema.safeParse(fixture);
@@ -48,7 +49,7 @@ describe('Invoice Intent Schema and Validation', () => {
         type: 'invoice',
         amount: '150.00',
         asset: 'XLM',
-        recipient: 'Bob',
+        recipient: VALID_ADDRESS,
         dueDate: 'not-a-date',
       };
       const result = InvoiceIntentSchema.safeParse(fixture);
@@ -65,7 +66,7 @@ describe('Invoice Intent Schema and Validation', () => {
         type: 'invoice',
         amount: '150.00',
         asset: 'XLM',
-        recipient: 'Bob',
+        recipient: VALID_ADDRESS,
         dueDate: '2020-01-01T00:00:00Z',
       };
       const result = InvoiceIntentSchema.safeParse(fixture);
@@ -81,7 +82,7 @@ describe('Invoice Intent Schema and Validation', () => {
         type: 'invoice',
         amount: '150.00',
         asset: 'XLM',
-        recipient: 'Bob',
+        recipient: VALID_ADDRESS,
         dueDate: yesterday,
       };
       const result = InvoiceIntentSchema.safeParse(fixture);
@@ -97,47 +98,47 @@ describe('Invoice Intent Schema and Validation', () => {
         type: 'invoice',
         amount: '150.00',
         asset: 'XLM',
-        recipient: 'Bob',
+        recipient: VALID_ADDRESS,
         dueDate: tomorrow,
       };
       const result = InvoiceIntentSchema.safeParse(fixture);
       expect(result.success).toBe(true);
     });
 
-    it('validates multilingual recipient and typical data', () => {
+    it('accepts an @username handle as the recipient', () => {
       const fixture = {
         type: 'invoice',
         amount: '500',
         asset: 'XLM',
-        recipient: 'こんにちは (Konnichiwa) Inc.',
+        recipient: VALID_HANDLE,
         dueDate: '2027-01-01',
       };
       const result = parseInvoiceIntent(fixture);
       expect(result).toEqual(fixture);
     });
 
-    it('validates Spanish multilingual recipient', () => {
-      const fixture = {
-        type: 'invoice',
-        amount: '25.50',
-        asset: 'USDC',
-        recipient: 'Ramón Núñez S.A.',
-        dueDate: '2026-11-30',
-      };
-      const result = parseInvoiceIntent(fixture);
-      expect(result).toEqual(fixture);
-    });
-
-    it('validates Arabic multilingual recipient', () => {
-      const fixture = {
+    // Issue #1210 — a display name is not a payable identifier. These three
+    // previously passed and were the bug: an invoice addressed to a name has
+    // nothing to bill. Multilingual *names* now belong in a display field, not
+    // in `recipient`, which must be an address or a handle.
+    it.each([
+      ['Japanese', 'こんにちは (Konnichiwa) Inc.'],
+      ['Spanish', 'Ramón Núñez S.A.'],
+      ['Arabic', 'شركة الأمل'],
+    ])('rejects a %s display name as the recipient', (_language, recipient) => {
+      const result = InvoiceIntentSchema.safeParse({
         type: 'invoice',
         amount: '350.75',
         asset: 'XLM',
-        recipient: 'شركة الأمل',
-        dueDate: '2026-10-15',
-      };
-      const result = parseInvoiceIntent(fixture);
-      expect(result).toEqual(fixture);
+        recipient,
+        dueDate: '2027-01-01',
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].message).toBe(
+          'Recipient must be a Stellar address (G...) or an @username handle'
+        );
+      }
     });
 
     it('rejects partial invoice with missing due date', () => {
@@ -145,7 +146,7 @@ describe('Invoice Intent Schema and Validation', () => {
         type: 'invoice',
         amount: '100',
         asset: 'USDC',
-        recipient: 'Bob',
+        recipient: VALID_ADDRESS,
       };
       const result = InvoiceIntentSchema.safeParse(fixture);
       expect(result.success).toBe(false);
@@ -171,7 +172,7 @@ describe('Invoice Intent Schema and Validation', () => {
         type: 'invoice',
         amount: '150.00',
         asset: 'USDC',
-        recipient: 'Alice',
+        recipient: VALID_ADDRESS,
         dueDate: '2026-12-31T23:59:59Z',
       };
       const res = await request(app).post('/v1/intents/validate').send(fixture);
@@ -185,7 +186,7 @@ describe('Invoice Intent Schema and Validation', () => {
         type: 'invoice',
         amount: 'abc', // invalid
         asset: 'USDC',
-        recipient: 'Alice',
+        recipient: VALID_ADDRESS,
         dueDate: '2026-12-31T23:59:59Z',
       };
       const res = await request(app).post('/v1/intents/validate').send(fixture);

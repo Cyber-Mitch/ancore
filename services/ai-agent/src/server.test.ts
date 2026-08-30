@@ -2,6 +2,7 @@ import request from 'supertest';
 import { enforceNoAutonomousExecution } from './guardrail';
 import { createApp } from './server';
 import type { DraftIntentResponse } from './types';
+import { VALID_ACCOUNT_ID, VALID_ADDRESS } from './__tests__/fixtures/addresses';
 
 const app = createApp();
 
@@ -22,8 +23,8 @@ describe('GET /health', () => {
 
 describe('POST /agent/draft-intent', () => {
   const validBody = {
-    prompt: 'Send 10 XLM to GDKRY7GNU3CJQX6FMT2BIPW5ELSZAHOV4DKRY7GNU3CJQX6FMT2BIPW5',
-    accountId: 'GABC123',
+    prompt: `Send 10 XLM to ${VALID_ADDRESS}`,
+    accountId: VALID_ACCOUNT_ID,
   };
 
   it('returns 200 with a draft payment intent', async () => {
@@ -38,7 +39,7 @@ describe('POST /agent/draft-intent', () => {
   it('returns 200 with a draft invoice intent when prompt contains "invoice"', async () => {
     const res = await request(app)
       .post('/agent/draft-intent')
-      .send({ prompt: 'Create an invoice for 50 XLM', accountId: 'GABC123' });
+      .send({ prompt: 'Create an invoice for 50 XLM', accountId: VALID_ACCOUNT_ID });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('draft');
     expect(res.body.requiresConfirmation).toBe(true);
@@ -46,7 +47,9 @@ describe('POST /agent/draft-intent', () => {
   });
 
   it('returns 400 when prompt is missing', async () => {
-    const res = await request(app).post('/agent/draft-intent').send({ accountId: 'GABC123' });
+    const res = await request(app)
+      .post('/agent/draft-intent')
+      .send({ accountId: VALID_ACCOUNT_ID });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Invalid request: prompt and accountId required');
   });
@@ -69,7 +72,7 @@ describe('POST /v1/intents/validate', () => {
       type: 'payment',
       amount: '100',
       asset: 'XLM',
-      destination: 'GCZST3XVCDTUJ76ZAV2HA72KYPJW5YJSNXVZTSKNBPWTXGVLNPXQ4JH',
+      destination: VALID_ADDRESS,
     });
     expect(res.status).toBe(200);
     expect(res.body.valid).toBe(true);
@@ -82,7 +85,7 @@ describe('POST /v1/intents/validate', () => {
       type: 'payment',
       amount: '1500',
       asset: 'XLM',
-      destination: 'GCZST3XVCDTUJ76ZAV2HA72KYPJW5YJSNXVZTSKNBPWTXGVLNPXQ4JH',
+      destination: VALID_ADDRESS,
     });
     expect(res.status).toBe(200);
     expect(res.body.valid).toBe(true);
@@ -95,7 +98,7 @@ describe('POST /v1/intents/validate', () => {
       type: 'payment',
       amount: '1000',
       asset: 'USDC',
-      destination: 'GCZST3XVCDTUJ76ZAV2HA72KYPJW5YJSNXVZTSKNBPWTXGVLNPXQ4JH',
+      destination: VALID_ADDRESS,
     });
     expect(res.status).toBe(200);
     expect(res.body.valid).toBe(true);
@@ -108,7 +111,7 @@ describe('POST /v1/intents/validate', () => {
       type: 'payment',
       amount: '999.99',
       asset: 'XLM',
-      destination: 'GCZST3XVCDTUJ76ZAV2HA72KYPJW5YJSNXVZTSKNBPWTXGVLNPXQ4JH',
+      destination: VALID_ADDRESS,
     });
     expect(res.status).toBe(200);
     expect(res.body.valid).toBe(true);
@@ -121,7 +124,7 @@ describe('POST /v1/intents/validate', () => {
       type: 'payment',
       amount: '1000.01',
       asset: 'USDC',
-      destination: 'GCZST3XVCDTUJ76ZAV2HA72KYPJW5YJSNXVZTSKNBPWTXGVLNPXQ4JH',
+      destination: VALID_ADDRESS,
     });
     expect(res.status).toBe(200);
     expect(res.body.valid).toBe(true);
@@ -134,7 +137,7 @@ describe('POST /v1/intents/validate', () => {
       type: 'payment',
       amount: '100',
       asset: 'XLM',
-      destination: 'GCZST3XVCDTUJ76ZAV2HA72KYPJW5YJSNXVZTSKNBPWTXGVLNPXQ4JH',
+      destination: VALID_ADDRESS,
       requiresConfirmation: false,
     });
     expect(res.status).toBe(200);
@@ -147,7 +150,7 @@ describe('POST /v1/intents/validate', () => {
       type: 'payment',
       amount: 'invalid',
       asset: 'XLM',
-      destination: 'GCZST3XVCDTUJ76ZAV2HA72KYPJW5YJSNXVZTSKNBPWTXGVLNPXQ4JH',
+      destination: VALID_ADDRESS,
     });
     expect(res.status).toBe(400);
     expect(res.body.errors).toBeDefined();
@@ -168,7 +171,7 @@ describe('enforceNoAutonomousExecution', () => {
     status: 'draft',
     requiresConfirmation: true,
     summary: 'test',
-    intent: { type: 'payment', destination: 'G123', amount: '10', asset: 'XLM' },
+    intent: { type: 'payment', destination: VALID_ADDRESS, amount: '10', asset: 'XLM' },
     risk: { level: 'low', reasons: [] },
   };
 
